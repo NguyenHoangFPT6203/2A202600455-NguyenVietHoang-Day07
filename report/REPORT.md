@@ -5,20 +5,6 @@
 **Ngày nộp**: 10 April 2026  
 **Điểm tự đánh giá**: 95/100
 
----
-
-## 📋 Mục Lục
-
-1. [Warm-up: Cosine Similarity & Chunking](#section-1)
-2. [Document Selection (Nhóm)](#section-2)
-3. [Chunking Strategy Design (Cá nhân)](#section-3)
-4. [My Implementation Approach](#section-4)
-5. [Similarity Predictions](#section-5)
-6. [Results: Benchmark Queries](#section-6)
-7. [Failure Analysis & Lessons](#section-7)
-
----
-
 ## Section 1: Warm-up — Cosine Similarity & Chunking Math {#section-1}
 
 ### Exercise 1.1 — Cosine Similarity
@@ -77,72 +63,28 @@ num_chunks = ceil((10,000 - 100) / 400)
 
 ## Section 2: Document Selection (Nhóm) {#section-2}
 
-### Domain & Rationale
+### Domain & Lý Do Chọn
 
-**Domain Chosen**: Bộ luật Dân sự 2015 (Vietnamese Civil Code) — Phần Bảo đảm thực hiện nghĩa vụ
+**Domain**: Luật
 
-**Why this domain?**
+**Tại sao nhóm chọn domain này?**
 
-1. **Hierarchical structure**: Tham Luận → Điều → Khoán, giúp test hierarchy-aware chunking
-2. **Real-world use**: Legal Q&A systems là use case thực tế (đang phát triển ở VN)
-3. **Rich metadata**: Articles, sections, difficulty levels — ideal para test filtering
-4. **Multi-language**: Vietnamese legal text → test language-specific embeddings
-5. **Evaluation metrics**: Easy to define "correct answer" (gold standard từ texts)
+Lĩnh vực luật có khối lượng tài liệu lớn, nhiều thuật ngữ chuyên môn và thường xuyên thay đổi, gây khó khăn cho người dùng khi cần tra cứu và hiểu rõ dung. Nhóm chọn domain này để xây dựng giải pháp AI hỗ trợ tìm kiếm, tóm tắt và giải thích văn bản pháp luật một cách nhanh chóng, chính xác hơn. Đồng thời, đây là domain có tinh ứng dụng cao trong thực tế, giúp tiết kiếm thời gian và giảm rủi ro hiểu sai thông tin pháp luật.
 
 ### Document Inventory
 
-| #   | Document                      | Type          | Size       | Key Articles     |
-| --- | ----------------------------- | ------------- | ---------- | ---------------- |
-| 1   | Định nghĩa thế chấp           | Definition    | ~250 chars | Điều 317         |
-| 2   | Điều kiện tài sản bảo đảm     | Requirement   | ~320 chars | Điều 295         |
-| 3   | Thứ tự ưu tiên thanh toán     | Requirement   | ~280 chars | Điều 308         |
-| 4   | So sánh: Thế chấp vs Cầm cố   | Comparison    | ~310 chars | Điều 317, 340    |
-| 5   | Quyền sử dụng đất hình thành  | Specification | ~380 chars | Luật ĐĐ Điều 188 |
-| 6   | So sánh: Bảo lãnh vs Thế chấp | Comparison    | ~290 chars | Điều 335, 317    |
-
-**Total: 6 documents, ~1,830 characters**
+| #   | Tên tài liệu                                              | Nguồn                                 | Số ký tự | Metadata đã gán                           |
+| --- | --------------------------------------------------------- | ------------------------------------- | -------- | ----------------------------------------- |
+| 1   | Tài liệu Bộ luật DS 2015 — Tham luận về biện pháp bảo đảm | Tổng hợp tham luận hội thảo BLDS 2015 | 140,820  | doc_type=legal, lang=vi, category=bao_dam |
 
 ### Metadata Schema
 
-```json
-{
-  "document_domain": "Vietnamese Civil Code",
-  "metadata_fields": [
-    {
-      "name": "category",
-      "description": "Document section (e.g., Định nghĩa, Điều kiện)",
-      "values": ["Definition", "Requirement", "Comparison", "Specification"]
-    },
-    {
-      "name": "article_number",
-      "description": "Legal article (Điều)",
-      "values": ["295", "308", "317", "335", "340", "LĐ 188"]
-    },
-    {
-      "name": "content_type",
-      "description": "Type of content",
-      "values": ["Definition", "Requirement", "Comparison", "Specification"]
-    },
-    {
-      "name": "difficulty",
-      "description": "Legal complexity",
-      "values": ["Low", "Medium", "High"]
-    },
-    {
-      "name": "language",
-      "description": "Document language",
-      "values": ["vi", "en"]
-    }
-  ]
-}
-```
-
-**Why these metadata fields?**
-
-- `article_number`: Enable filtering on specific laws (Q4, Q5 need this)
-- `difficulty`: Evaluate strategy performance across complexity levels
-- `content_type`: Understand what retrieval is good at (definitions? comparisons?)
-- `category` + `language`: Support future multi-language and multi-category filtering
+| Trường metadata | Kiểu   | Ví dụ giá trị               | Tại sao hữu ích cho retrieval?                                               |
+| --------------- | ------ | --------------------------- | ---------------------------------------------------------------------------- |
+| doc_type        | string | legal                       | Lọc nhanh chỉ tài liệu pháp luật, loại trừ tài liệu khác domain              |
+| lang            | string | vi                          | Phân biệt ngôn ngữ để chọn embedding model phù hợp                           |
+| chunk_index     | int    | 42                          | Truy vết vị trí chunk trong tài liệu gốc, hỗ trợ hiển thị context xung quanh |
+| source          | string | Tài liệu Bộ luật DS 2015.md | Ghi nhận nguồn gốc tài liệu để trích dẫn trong câu trả lời                   |
 
 ---
 
@@ -489,7 +431,7 @@ Cause: Mock embedder is hash-based, deterministic but not semantic
 
 ✅ **Phase 2 (Group)**
 
-- 6 documents with metadata schema
+- 1 legal document (Boluatdansu2015.md) with 6 benchmark sections and metadata schema
 - Custom LegalArticleChunker strategy
 - 5 benchmark queries (Low, Medium, High difficulty)
 - Cosine similarity predictions (5 pairs)
@@ -601,7 +543,7 @@ Bộ luật là tài liệu có cấu trúc phức tạp (Tham Luận → Điề
 | 5   | Quyền sử dụng đất hình thành (Luật ĐĐ 188) | Luật ĐĐ 2013 | ~380     | articles=295,LĐ188, type=Specification, difficulty=High |
 | 6   | So sánh bảo lãnh vs thế chấp (Điều 335)    | BLDS 2015    | ~290     | articles=335,317, type=Comparison, difficulty=High      |
 
-**Tổng:** 6 documents, ~1,830 ký tự
+**Tổng:** 1 source document (Boluatdansu2015.md - 140,820 chars), 6 benchmark sections (~1,830 chars extracted)
 
 ---
 
